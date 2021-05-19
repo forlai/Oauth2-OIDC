@@ -1,0 +1,91 @@
+package it.eng.edicolaservice.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
+
+import it.eng.edicolaservice.filters.JWTAuthenticationFilter;
+import it.eng.edicolaservice.filters.JWTAuthorizationFilter;
+import it.eng.edicolaservice.security.RSAKeys;
+import it.eng.edicolaservice.service.user.UserDetailsServiceImpl;
+
+@EnableWebSecurity
+public class WebSecurity extends WebSecurityConfigurerAdapter {
+
+    private UserDetailsServiceImpl userDetailsService;
+    private BCryptPasswordEncoder bCryptPasswordEncoder;
+    
+    @Autowired
+    RSAKeys rsaKeys;
+
+    public WebSecurity(UserDetailsServiceImpl userService, BCryptPasswordEncoder bCryptPasswordEncoder) {
+        this.userDetailsService = userService;
+        this.bCryptPasswordEncoder = bCryptPasswordEncoder;
+    }
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+
+        http
+        //.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        //.and()
+        .headers().frameOptions().sameOrigin() //TODO rimuovere, serve solo per console h2
+        .and()
+        .csrf().disable() //TODO rimuovere, serve solo per chiamate da postman               
+        .cors()
+        .and()
+        .authorizeRequests()        
+        
+        		.antMatchers("/h2-console/**").permitAll() //TODO rimuovere, serve solo per console h2        		
+                .antMatchers(HttpMethod.POST, SecurityConstants.SIGN_UP_URL).permitAll()
+                .antMatchers(HttpMethod.POST, "/users/login").permitAll()
+                .antMatchers(HttpMethod.POST, "/users/register").permitAll()
+                .antMatchers(HttpMethod.POST, "/users/auth/google").permitAll()
+                .anyRequest().authenticated()
+                .and()
+                .addFilter(new JWTAuthenticationFilter(authenticationManager(), rsaKeys))
+                .addFilter(new JWTAuthorizationFilter(authenticationManager(), rsaKeys))                
+                //.and()                
+                
+                .oauth2ResourceServer(OAuth2ResourceServerConfigurer::jwt)
+                .sessionManagement((session) -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling((exceptions) -> exceptions
+                    .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
+                    .accessDeniedHandler(new BearerTokenAccessDeniedHandler()));
+
+
+
+                
+
+
+    }
+
+    @Override
+    public void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.userDetailsService(userDetailsService).passwordEncoder(bCryptPasswordEncoder);
+        
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration corsConfiguration = new CorsConfiguration().applyPermitDefaultValues();
+        source.registerCorsConfiguration("/**", corsConfiguration);       
+        
+        return source;
+    }
+}

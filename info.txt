@@ -1,0 +1,6 @@
+https://www.freecodecamp.org/news/how-to-setup-jwt-authorization-and-authentication-in-spring/
+
+
+
+https://www.novatec-gmbh.de/en/blog/how-to-support-different-jwts-in-your-spring-boot-application/
+https://docs.spring.io/spring-security/site/docs/current/reference/html5/#oauth2resourceserver
